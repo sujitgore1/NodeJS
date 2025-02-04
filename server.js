@@ -12,8 +12,9 @@ if (cluster.isPrimary) {
         cluster.fork();
     }
 
+    // Restart workers if they exit
     cluster.on('exit', (worker, code, signal) => {
-        console.log(`Worker ${worker.process.pid} died. Starting a new one...`);
+        console.log(`Worker ${worker.process.pid} died. Restarting...`);
         cluster.fork();
     });
 
@@ -24,8 +25,26 @@ if (cluster.isPrimary) {
     app.use(statusMonitor);
     app.get('/status', statusMonitor.pageRoute);
 
+    // Stream large API response
     app.get('/', (req, res) => {
-        res.send(`Hello, World! ${process.pid}`);
+        res.setHeader('Content-Type', 'application/json');
+        res.write('{"message": "Streaming Data from Worker ' + process.pid + '", "data": [');
+
+        let count = 100000; // Number of records
+        for (let i = 0; i < count; i++) {
+            let item = JSON.stringify({
+                id: i + 1,
+                name: `Item ${i + 1}`,
+                value: Math.random() * 1000,
+                timestamp: new Date().toISOString()
+            });
+
+            res.write(item);
+            if (i < count - 1) res.write(','); // Add a comma between JSON objects
+        }
+
+        res.write(']}');
+        res.end();
     });
 
     app.listen(port, () => {
